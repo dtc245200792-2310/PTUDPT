@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f3ef" />
+    <title>Mạch Đơn | Vận hành đơn hàng</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js" defer></script>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Mạch Đơn, trang chủ">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Mạch Đơn<span class="brand-period">.</span></span>
+        </a>
+        <nav class="side-nav" aria-label="Điều hướng chính">
+          <a class="nav-item active" href="#orders"><span class="nav-icon">▤</span>Đơn hàng</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="system-status"><span class="online-dot"></span><span><strong>Dịch vụ đơn hàng</strong><small>API · RabbitMQ · SignalR</small></span></div>
+        </div>
+      </aside>
+
+      <main class="main-content" id="orders">
+        <header class="topbar">
+          <div class="breadcrumb">Vận hành <span>/</span> <strong>Đơn hàng</strong></div>
+        </header>
+
+        <section class="page-heading">
+          <div><p class="eyebrow">ĐƠN HÀNG</p><h1>Danh sách đơn hàng</h1><p class="heading-copy">Theo dõi quá trình xử lý và trạng thái mới nhất.</p></div>
+          <button class="primary-button" id="open-create" type="button"><span aria-hidden="true">＋</span> Tạo đơn hàng</button>
+        </section>
+
+        <section class="orders-section" aria-labelledby="orders-title">
+          <div class="section-heading"><div><div class="section-title-line"><h2 id="orders-title">Danh sách đơn</h2><span class="live-label"><span class="online-dot"></span> Cập nhật trực tiếp</span></div><p class="section-subtitle">Thông tin mới nhất từ hàng đợi xử lý</p></div><button class="text-button" id="refresh-orders" type="button" title="Làm mới danh sách"><span aria-hidden="true">↻</span> Làm mới</button></div>
+          <div class="table-wrap"><table><thead><tr><th>MÃ ĐƠN</th><th>KHÁCH HÀNG</th><th>NGÀY TẠO</th><th>TỔNG TIỀN</th><th>TRẠNG THÁI</th></tr></thead><tbody id="orders-body"></tbody></table><div class="empty-state" id="empty-state" hidden><span class="empty-mark">○</span><strong>Chưa có đơn hàng</strong><span>Tạo đơn hàng đầu tiên để bắt đầu xử lý.</span></div></div>
+          <footer class="table-footer"><span id="result-count">Đang tải đơn hàng...</span><span class="queue-indicator"><span class="queue-bars"><i></i><i></i><i></i></span> RabbitMQ <span class="footer-separator">·</span> Worker đang lắng nghe</span></footer>
+        </section>
+        <footer class="page-footer"><span>MẠCH ĐƠN <span class="footer-separator">·</span> HỆ THỐNG XỬ LÝ PHÂN TÁN</span><span id="last-updated"></span></footer>
+      </main>
+    </div>
+
+    <dialog class="modal create-modal" id="create-dialog">
+      <form id="create-form">
+        <div class="modal-header"><div><p class="eyebrow">ĐƠN HÀNG MỚI</p><h2>Tạo đơn hàng</h2></div><button class="icon-button close-dialog" type="button" aria-label="Đóng">×</button></div>
+        <div class="form-section"><h3>Thông tin khách hàng</h3><div class="form-grid"><label class="field"><span>Họ và tên</span><input name="customer_name" required maxlength="100" placeholder="Nguyễn Minh Anh" /></label><label class="field"><span>Email nhận thông báo</span><input name="customer_email" type="email" required maxlength="254" placeholder="minhanh@email.com" /></label></div></div>
+        <div class="form-section"><div class="form-section-heading"><h3>Sản phẩm</h3><button class="add-item-button" id="add-item" type="button"><span>＋</span> Thêm sản phẩm</button></div><div class="item-head"><span>TÊN SẢN PHẨM</span><span>SỐ LƯỢNG</span><span>ĐƠN GIÁ</span><span></span></div><div id="item-list"></div></div>
+        <div class="form-total"><span>Tạm tính</span><strong id="form-total">0 ₫</strong></div>
+        <div class="modal-actions"><button class="secondary-button close-dialog" type="button">Hủy</button><button class="primary-button" type="submit"><span aria-hidden="true">↗</span> Gửi vào hàng đợi</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal detail-modal" id="detail-dialog">
+      <div class="modal-header"><div><p class="eyebrow">CHI TIẾT ĐƠN HÀNG</p><h2 id="detail-title">—</h2></div><button class="icon-button close-detail" type="button" aria-label="Đóng">×</button></div>
+      <div class="detail-status-row"><span id="detail-status"></span><span class="stream-status" id="stream-status"><span class="online-dot"></span> SignalR</span></div>
+      <div class="detail-block"><h3>Tiến trình xử lý</h3><ol class="timeline" id="detail-timeline"></ol></div>
+      <div class="detail-block"><h3>Thông tin giao dịch</h3><div class="detail-customer"><div><span>Khách hàng</span><strong id="detail-customer"></strong></div><div><span>Email</span><strong id="detail-email"></strong></div></div><div class="detail-items" id="detail-items"></div><div class="detail-total"><span>Tổng thanh toán</span><strong id="detail-total"></strong></div></div>
+      <div class="detail-meta"><span>Ngày tạo</span><strong id="detail-created"></strong></div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

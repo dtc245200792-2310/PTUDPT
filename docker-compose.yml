@@ -1,0 +1,54 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: orderapp
+      RABBITMQ_DEFAULT_PASS: orderapp-dev
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      RABBITMQ_URL: amqp://orderapp:orderapp-dev@rabbitmq/
+      DATABASE_PATH: /data/orders.db
+    ports:
+      - "8000:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - order-data:/data
+
+  worker:
+    build: .
+    command: python worker.py
+    environment:
+      RABBITMQ_URL: amqp://orderapp:orderapp-dev@rabbitmq/
+      DATABASE_PATH: /data/orders.db
+      ORDER_STAGE_DELAY_SECONDS: 2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - order-data:/data
+
+  notification:
+    build: ./notification_service
+    environment:
+      RABBITMQ_URL: amqp://orderapp:orderapp-dev@rabbitmq/
+    ports:
+      - "8001:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  order-data:
