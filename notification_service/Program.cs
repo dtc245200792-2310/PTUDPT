@@ -36,38 +36,68 @@ public sealed class OrderEventConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var factory = new ConnectionFactory
-        {
-            Uri = new Uri(_connectionString),
-            DispatchConsumersAsync = true
-        };
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
-        channel.ExchangeDeclare("order.events", ExchangeType.Topic, durable: true);
-        channel.QueueDeclare("notifications", durable: true, exclusive: false, autoDelete: false);
-        channel.QueueBind("notifications", "order.events", "order.updated");
-        channel.BasicQos(0, 1, false);
-
-        var consumer = new AsyncEventingBasicConsumer(channel);
-        consumer.Received += async (_, eventArgs) =>
-        {
-            try
-            {
-                var json = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
-                var order = JsonSerializer.Deserialize<JsonElement>(json);
-                await _hub.Clients.All.SendAsync("OrderUpdated", order, stoppingToken);
-                channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
-            }
-            catch
-            {
-                channel.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: true);
-            }
-        };
-
-        channel.BasicConsume("notifications", autoAck: false, consumer);
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+            IConnection? connection = null;
+            IModel? channel = null;
+
+            try
+            {
+                var factory = new ConnectionFactory
+                {
+                    Uri = new Uri(_connectionString),
+                    DispatchConsumersAsync = true
+                };
+                connection = factory.CreateConnection();
+                channel = connection.CreateModel();
+                channel.ExchangeDeclare("order.events", ExchangeType.Topic, durable: true);
+                channel.QueueDeclare("notifications", durable: true, exclusive: false, autoDelete: false);
+                channel.QueueBind("notifications", "order.events", "order.updated");
+                channel.BasicQos(0, 1, false);
+
+                var consumer = new AsyncEventingBasicConsumer(channel);
+                consumer.Received += async (_, eventArgs) =>
+                {
+                    try
+                    {
+                        var json = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
+                        var order = JsonSerializer.Deserialize<JsonElement>(json);
+                        await _hub.Clients.All.SendAsync("OrderUpdated", order, stoppingToken);
+                        channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
+                    }
+                    catch
+                    {
+                        channel.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: true);
+                    }
+                };
+
+                channel.BasicConsume("notifications", autoAck: false, consumer);
+                while (!stoppingToken.IsCancellationRequested && connection.IsOpen)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception error)
+            {
+                Console.WriteLine($"RabbitMQ chưa sẵn sàng: {error.Message}. Thử lại sau 3 giây...");
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+            finally
+            {
+                channel?.Dispose();
+                connection?.Dispose();
+            }
         }
     }
 }

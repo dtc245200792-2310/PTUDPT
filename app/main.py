@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -28,7 +29,15 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     initialize_database(DATABASE_PATH)
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    connection = None
+    for attempt in range(30):
+        try:
+            connection = await aio_pika.connect_robust(RABBITMQ_URL)
+            break
+        except Exception:
+            if attempt == 29:
+                raise
+            await asyncio.sleep(1)
     channel = await connection.channel()
     await declare_messaging(channel)
     app.state.rabbit_channel = channel
@@ -83,8 +92,10 @@ async def create_order(payload: OrderRequest, request: Request):
 
 
 @app.get("/orders")
-async def list_orders():
-    return await run_in_threadpool(read_orders, DATABASE_PATH)
+async def list_orders(search: str = "", status: str = ""):
+    if status and status not in ("pending", "processing", "completed", "failed"):
+        raise HTTPException(status_code=400, detail="Trạng thái lọc không hợp lệ")
+    return await run_in_threadpool(read_orders, DATABASE_PATH, search, status)
 
 
 @app.get("/orders/{order_id}")

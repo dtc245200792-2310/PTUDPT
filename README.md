@@ -4,10 +4,24 @@
 
 ## Chạy hệ thống
 
-Cần Docker Desktop và Docker Compose. Chạy:
+Cần Docker Desktop và Docker Compose.
+
+Khởi động nhanh bằng lệnh Windows:
+
+```bat
+start.bat
+```
+
+Hoặc chạy bằng Compose:
 
 ```bash
-docker compose up --build --scale worker=2
+docker compose up -d --no-build --wait
+```
+
+Chỉ dùng `--build` khi thay đổi mã nguồn hoặc Dockerfile:
+
+```bash
+docker compose up --build -d --wait
 ```
 
 Mở [http://localhost:8000](http://localhost:8000). SignalR hub chạy tại `http://localhost:8001/notifications`; RabbitMQ Management chạy tại [http://localhost:15672](http://localhost:15672) (tài khoản mẫu `orderapp` / `orderapp-dev`). SQLite được giữ trong volume `order-data`. Dừng bằng `Ctrl+C`; dùng `docker compose down` để gỡ container.

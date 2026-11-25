@@ -37,7 +37,15 @@ async def process_order(order_id: str, channel: aio_pika.abc.AbstractChannel) ->
 
 async def run_worker() -> None:
     initialize_database(DATABASE_PATH)
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    connection = None
+    for attempt in range(30):
+        try:
+            connection = await aio_pika.connect_robust(RABBITMQ_URL)
+            break
+        except Exception:
+            if attempt == 29:
+                raise
+            await asyncio.sleep(1)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=1)
     await declare_messaging(channel)

@@ -10,10 +10,13 @@ services:
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
 
   api:
+    restart: unless-stopped
     build: .
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
@@ -21,9 +24,12 @@ services:
       DATABASE_PATH: /data/orders.db
     ports:
       - "8000:8000"
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
     volumes:
       - order-data:/data
 
@@ -34,11 +40,11 @@ services:
       RABBITMQ_URL: amqp://orderapp:orderapp-dev@rabbitmq/
       DATABASE_PATH: /data/orders.db
       ORDER_STAGE_DELAY_SECONDS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     volumes:
       - order-data:/data
+    deploy:
+      replicas: 2
+    restart: unless-stopped
 
   notification:
     build: ./notification_service
@@ -46,9 +52,7 @@ services:
       RABBITMQ_URL: amqp://orderapp:orderapp-dev@rabbitmq/
     ports:
       - "8001:8080"
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   order-data:

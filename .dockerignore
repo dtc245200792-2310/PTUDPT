@@ -1,0 +1,13 @@
+**/__pycache__
+**/*.py[cod]
+.git
+.gitignore
+.vscode
+.data
+.data/
+data/
+*.db
+*.db-shm
+*.db-wal
+tests/
+README.md

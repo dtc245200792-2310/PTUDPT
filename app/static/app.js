@@ -13,6 +13,7 @@ let orders = [];
 let selectedOrder = null;
 let notificationConnection = null;
 let toastTimer;
+let searchTimer;
 
 const money = (amount) => new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
 const dateTime = (value) => new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -70,7 +71,13 @@ function renderOrders() {
 
 async function loadOrders() {
   try {
-    orders = await request("/orders");
+    const params = new URLSearchParams();
+    const search = document.querySelector("#order-search")?.value.trim();
+    const status = document.querySelector("#status-filter")?.value;
+    if (search) params.set("search", search);
+    if (status) params.set("status", status);
+    const query = params.toString();
+    orders = await request(`/orders${query ? `?${query}` : ""}`);
     renderOrders();
   } catch (error) {
     document.querySelector("#result-count").textContent = "Không thể tải dữ liệu đơn hàng";
@@ -146,12 +153,8 @@ async function connectNotifications() {
     .withUrl(`${window.location.protocol}//${window.location.hostname}:8001/notifications`)
     .withAutomaticReconnect()
     .build();
-  notificationConnection.on("OrderUpdated", (updated) => {
-    const previous = orders.find((order) => order.id === updated.id);
-    orders = previous
-      ? orders.map((order) => order.id === updated.id ? updated : order)
-      : [updated, ...orders];
-    renderOrders();
+  notificationConnection.on("OrderUpdated", async (updated) => {
+    await loadOrders();
     if (selectedOrder?.id === updated.id) {
       const previousStatus = selectedOrder.status;
       renderDetails(updated);
@@ -268,3 +271,14 @@ addItemRow();
 updateFormTotal();
 loadOrders();
 connectNotifications();
+
+document.querySelector("#order-search").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(loadOrders, 250);
+});
+document.querySelector("#status-filter").addEventListener("change", loadOrders);
+document.querySelector("#clear-filter").addEventListener("click", () => {
+  document.querySelector("#order-search").value = "";
+  document.querySelector("#status-filter").value = "";
+  loadOrders();
+});
